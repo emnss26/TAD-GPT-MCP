@@ -1,0 +1,29 @@
+{
+  "name": "tad-gpt-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "workspaces": [
+    "mcp_common",
+    "mcp_query",
+    "mcp_orchestrator",
+    "mcp_arch",
+    "mcp_str",
+    "mcp_mep",
+    "mcp_graphics",
+    "mcp_qa",
+    "mcp_export",
+    "mcp_parameters",
+    "mcp_qto",
+    "mcp_doc"
+  ],
+  "scripts": {
+    "build": "npm run build -ws",
+    "clean": "npm run clean -ws",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}

@@ -1,0 +1,19 @@
+# Secretos
+.env
+.env.*
+
+# Node
+node_modules/
+mcp/**/node_modules/
+mcp/**/dist/
+
+# VS/Build
+.vs/
+**/bin/
+**/obj/
+*.user
+*.suo
+
+# SO
+.DS_Store
+Thumbs.db
