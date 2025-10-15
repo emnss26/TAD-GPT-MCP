@@ -14,14 +14,13 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
-using System.Xml.Linq;
-using static System.Net.Mime.MediaTypeNames;
 
 
 namespace mcp_app
 {
     internal class RevitBridge : IDisposable
     {
+        private readonly string _apiKey = Environment.GetEnvironmentVariable("MCP_API_KEY");
 
         private class UiJob
         {
@@ -72,7 +71,7 @@ namespace mcp_app
                 ["level.create"] = ArchitectureActions.LevelCreate,
                 ["grid.create"] = ArchitectureActions.GridCreate,
                 ["floor.create"] = ArchitectureActions.FloorCreate,
-                ["ceiling.create"] = ArchitectureActions.CeilingCreate,
+                ["ceiling.create"] = ArchitectureActions.CeilingCreate, 
                 ["door.place"] = ArchitectureActions.DoorPlace,
                 ["window.place"] = ArchitectureActions.WindowPlace,
                 ["rooms.create_on_levels"] = ArchitectureActions.RoomsCreateOnLevels,
@@ -129,7 +128,7 @@ namespace mcp_app
                 // --- DOCUMENTS ---
                 ["sheets.create"] = DocActions.SheetsCreate,
                 ["sheets.add_views"] = DocActions.SheetsAddViews,
-                ["sheets.create_bulk"] = DocActions.SheetsCreateBulk,
+                ["sheets.create_bulk"] = DocActions.SheetsCreateBulk,      
                 ["sheets.assign_revisions"] = DocActions.SheetsAssignRevisions,
                 ["views.set_scope_box"] = DocActions.ViewsSetScopeBox,
                 ["sheets.add_schedules"] = DocActions.SheetsAddSchedules,
@@ -286,22 +285,49 @@ namespace mcp_app
         {
             try
             {
+                // 0) Preflight simple (útil si llamas desde un front con CORS)
+                if (ctx.Request.HttpMethod == "OPTIONS")
+                {
+                    ctx.Response.StatusCode = 204; // No Content
+                    ctx.Response.Close();
+                    return;
+                }
+
+                // 1) Método
                 if (ctx.Request.HttpMethod != "POST")
                 {
                     await WriteJson(ctx, 405, new MCPResponse { ok = false, message = "Method not allowed" });
                     return;
                 }
 
-                string body;
-                using (var sr = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding))
-                    body = await sr.ReadToEndAsync();
+                // 2) Auth Bearer (solo si MCP_API_KEY está definida)
+                if (!string.IsNullOrEmpty(_apiKey))
+                {
+                    var auth = ctx.Request.Headers["Authorization"];
+                    var ok =
+                        !string.IsNullOrWhiteSpace(auth) &&
+                        auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(auth.Substring("Bearer ".Length).Trim(), _apiKey, StringComparison.Ordinal);
 
+                    if (!ok)
+                    {
+                        await WriteJson(ctx, 401, new MCPResponse { ok = false, message = "Unauthorized" });
+                        return;
+                    }
+                }
+
+                // 3) Ruta
                 var path = ctx.Request.Url.AbsolutePath;
                 if (path != "/mcp")
                 {
                     await WriteJson(ctx, 404, new MCPResponse { ok = false, message = "Not found" });
                     return;
                 }
+
+                // 4) Cuerpo
+                string body;
+                using (var sr = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding))
+                    body = await sr.ReadToEndAsync();
 
                 var env = JsonConvert.DeserializeObject<MCPEnvelope>(body);
                 if (env == null || string.IsNullOrWhiteSpace(env.action))
