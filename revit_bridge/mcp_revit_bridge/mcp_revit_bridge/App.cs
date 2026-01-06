@@ -17,7 +17,7 @@ namespace mcp_app
         public Result OnStartup(UIControlledApplication application)
         {
             _bridge = new RevitBridge();
-            _bridge.Start("http://127.0.0.1:55234/"); // expone /mcp
+            _bridge.Start("http://127.0.0.1:55244/"); // expone /mcp
             return Result.Succeeded;
         }
 

@@ -15,7 +15,6 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
-
 namespace mcp_app
 {
     internal class RevitBridge : IDisposable
@@ -71,7 +70,7 @@ namespace mcp_app
                 ["level.create"] = ArchitectureActions.LevelCreate,
                 ["grid.create"] = ArchitectureActions.GridCreate,
                 ["floor.create"] = ArchitectureActions.FloorCreate,
-                ["ceiling.create"] = ArchitectureActions.CeilingCreate, 
+                ["ceiling.create"] = ArchitectureActions.CeilingCreate,
                 ["door.place"] = ArchitectureActions.DoorPlace,
                 ["window.place"] = ArchitectureActions.WindowPlace,
                 ["rooms.create_on_levels"] = ArchitectureActions.RoomsCreateOnLevels,
@@ -128,7 +127,7 @@ namespace mcp_app
                 // --- DOCUMENTS ---
                 ["sheets.create"] = DocActions.SheetsCreate,
                 ["sheets.add_views"] = DocActions.SheetsAddViews,
-                ["sheets.create_bulk"] = DocActions.SheetsCreateBulk,      
+                ["sheets.create_bulk"] = DocActions.SheetsCreateBulk,
                 ["sheets.assign_revisions"] = DocActions.SheetsAssignRevisions,
                 ["views.set_scope_box"] = DocActions.ViewsSetScopeBox,
                 ["sheets.add_schedules"] = DocActions.SheetsAddSchedules,
@@ -256,7 +255,6 @@ namespace mcp_app
                     a["categories"] = new JArray("OST_ElectricalFixtures", "OST_LightingDevices");
                     return QtoActions.QtoCountsMepElectrical(a);
                 },
-
             };
         }
 
@@ -281,6 +279,9 @@ namespace mcp_app
             }
         }
 
+        // Helper para listar acciones disponibles
+        private IEnumerable<string> ListActions() => _registry.Keys.OrderBy(k => k);
+
         private async Task Handle(HttpListenerContext ctx)
         {
             try
@@ -293,14 +294,7 @@ namespace mcp_app
                     return;
                 }
 
-                // 1) Método
-                if (ctx.Request.HttpMethod != "POST")
-                {
-                    await WriteJson(ctx, 405, new MCPResponse { ok = false, message = "Method not allowed" });
-                    return;
-                }
-
-                // 2) Auth Bearer (solo si MCP_API_KEY está definida)
+                // 1) Auth Bearer (solo si MCP_API_KEY está definida)
                 if (!string.IsNullOrEmpty(_apiKey))
                 {
                     var auth = ctx.Request.Headers["Authorization"];
@@ -316,15 +310,29 @@ namespace mcp_app
                     }
                 }
 
-                // 3) Ruta
                 var path = ctx.Request.Url.AbsolutePath;
-                if (path != "/mcp")
+
+                // 2) GET /health
+                if (ctx.Request.HttpMethod == "GET" && path == "/health")
+                {
+                    await WriteJson(ctx, 200, new MCPResponse { ok = true, message = "ok", data = new { bridge = "/mcp" } });
+                    return;
+                }
+
+                // 3) GET /actions
+                if (ctx.Request.HttpMethod == "GET" && path == "/actions")
+                {
+                    await WriteJson(ctx, 200, new MCPResponse { ok = true, data = new { actions = ListActions() } });
+                    return;
+                }
+
+                // 4) POST /mcp
+                if (ctx.Request.HttpMethod != "POST" || path != "/mcp")
                 {
                     await WriteJson(ctx, 404, new MCPResponse { ok = false, message = "Not found" });
                     return;
                 }
 
-                // 4) Cuerpo
                 string body;
                 using (var sr = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding))
                     body = await sr.ReadToEndAsync();
@@ -343,7 +351,7 @@ namespace mcp_app
                 _evt.Raise();
 
                 object result = await tcs.Task;
-                await WriteJson(ctx, 200, new MCPResponse { ok = true, data = result });
+                await WriteJson(ctx, 200, new MCPResponse { ok = true, message = "ok", data = result });
             }
             catch (Exception ex)
             {
@@ -357,10 +365,15 @@ namespace mcp_app
             var bytes = Encoding.UTF8.GetBytes(json);
             ctx.Response.StatusCode = code;
             ctx.Response.ContentType = "application/json";
+
+            // CORS amistoso
+            ctx.Response.Headers["Access-Control-Allow-Origin"] = "*";
+            ctx.Response.Headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type";
+            ctx.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
+
             await ctx.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length);
             ctx.Response.Close();
         }
-
 
         public void Dispose()
         {
