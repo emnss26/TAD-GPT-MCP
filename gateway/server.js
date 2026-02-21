@@ -82,6 +82,12 @@ async function callBridgeGet(path) {
 const manualAliases = {
   "model.levels.list": "levels.list",
   "qto.walls.types": "qto.walls",
+  "qto.floor": "qto.floors",
+  "qto.floor.types": "qto.floors",
+  "qto.wall": "qto.walls",
+  "view.category.override": "view.category.override_color",
+  "view.category.color": "view.category.override_color",
+  "view.category.set_color": "view.category.override_color",
 };
 function normalizeActionName(name, known = []) {
   if (!name) return name;
@@ -101,14 +107,317 @@ function normalizeActionName(name, known = []) {
 
 // --- Hints opcionales para ayudar al LLM ---
 const ACTION_HINTS = {
+  // Query / catalog
+  "levels.list": {
+    args: {},
+    examples: [{ action: "levels.list", args: {} }]
+  },
+  "view.active": {
+    args: {},
+    examples: [{ action: "view.active", args: {} }]
+  },
+  "views.list": {
+    args: {},
+    examples: [{ action: "views.list", args: {} }]
+  },
+  "categories.list": {
+    args: {},
+    examples: [{ action: "categories.list", args: {} }]
+  },
+  "materials.list": {
+    args: {},
+    examples: [{ action: "materials.list", args: {} }]
+  },
+  "walltypes.list": {
+    args: {},
+    examples: [{ action: "walltypes.list", args: {} }]
+  },
+  "families.types.list": {
+    args: {},
+    examples: [{ action: "families.types.list", args: {} }]
+  },
+  "selection.info": {
+    args: { includeParameters: "boolean?", topNParams: "int?" },
+    examples: [
+      { action: "selection.info", args: { includeParameters: false } },
+      { action: "selection.info", args: { includeParameters: true, topNParams: 30 } }
+    ]
+  },
+  "element.info": {
+    args: { elementId: "int (required)", includeParameters: "boolean?", topNParams: "int?" },
+    examples: [
+      { action: "element.info", args: { elementId: 12345 } },
+      { action: "element.info", args: { elementId: 12345, includeParameters: true, topNParams: 40 } }
+    ]
+  },
+
+  // Create / edit
   "level.create": {
-    args: { name: "string", "elevation_m|elevation_ft": "number" },
+    args: { name: "string?", "elevation_m|elevation_ft": "number (required one)" },
     examples: [
       { action: "level.create", args: { name: "Nivel 2", elevation_m: 3.5 } },
       { action: "level.create", args: { name: "Roof", elevation_ft: 49.21 } }
     ]
+  },
+  "floor.create": {
+    args: {
+      level: "string?",
+      floorType: "string?",
+      profile: "Pt2[] (required, min 3) -> [{x:number,y:number}, ...]"
+    },
+    examples: [
+      {
+        action: "floor.create",
+        args: {
+          level: "ARQ-P.B.",
+          floorType: "Generic 150mm",
+          profile: [{ x: 0, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 6 }, { x: 0, y: 6 }]
+        }
+      }
+    ]
+  },
+
+  // QTO
+  "qto.walls": {
+    args: {
+      groupBy: "string[]? -> any of: type, level, phase",
+      includeIds: "boolean?",
+      filter: "{ typeIds?:int[], typeNames?:string[], levels?:string[], phase?:string, useSelection?:boolean }?"
+    },
+    examples: [
+      { action: "qto.walls", args: {} },
+      { action: "qto.walls", args: { groupBy: ["type"] } },
+      { action: "qto.walls", args: { groupBy: ["level", "type"], includeIds: true } },
+      { action: "qto.walls", args: { filter: { levels: ["ARQ-P.B."], useSelection: false } } }
+    ]
+  },
+  "qto.floors": {
+    args: {
+      groupBy: "string[]? -> any of: type, level",
+      includeIds: "boolean?"
+    },
+    examples: [
+      { action: "qto.floors", args: {} },
+      { action: "qto.floors", args: { groupBy: ["type"] } },
+      { action: "qto.floors", args: { groupBy: ["level", "type"], includeIds: true } }
+    ],
+    notes: [
+      "This endpoint supports grouping.",
+      "Use groupBy=['type'] to get totals per floor type."
+    ]
+  },
+  "qto.ceilings": {
+    args: {
+      groupBy: "string[]? -> any of: type, level",
+      includeIds: "boolean?"
+    },
+    examples: [
+      { action: "qto.ceilings", args: {} },
+      { action: "qto.ceilings", args: { groupBy: ["type"] } }
+    ]
+  },
+  "qto.railings": {
+    args: {
+      groupBy: "string[]? -> any of: type, level",
+      includeIds: "boolean?"
+    },
+    examples: [
+      { action: "qto.railings", args: {} },
+      { action: "qto.railings", args: { groupBy: ["level"] } }
+    ]
+  },
+  "qto.families.count": {
+    args: {
+      groupBy: "string[]? -> any of: category, family, type, level",
+      includeIds: "boolean?",
+      categories: "string[]? (ex: OST_Doors, Doors)"
+    },
+    examples: [
+      { action: "qto.families.count", args: { groupBy: ["category", "family", "type"] } },
+      { action: "qto.families.count", args: { groupBy: ["type"], categories: ["OST_Doors"] } }
+    ]
+  },
+
+  // Graphics
+  "view.category.set_visibility": {
+    args: {
+      categories: "string[] (required)",
+      visible: "boolean? (default true)",
+      forceDetachTemplate: "boolean? (default false)",
+      viewId: "int?"
+    },
+    examples: [
+      { action: "view.category.set_visibility", args: { categories: ["Floors"], visible: false } },
+      { action: "view.category.set_visibility", args: { categories: ["OST_Floors"], visible: true, forceDetachTemplate: true } }
+    ]
+  },
+  "view.category.clear_overrides": {
+    args: {
+      categories: "string[] (required)",
+      forceDetachTemplate: "boolean? (default false)",
+      viewId: "int?"
+    },
+    examples: [
+      { action: "view.category.clear_overrides", args: { categories: ["Floors"] } }
+    ]
+  },
+  "view.category.override_color": {
+    args: {
+      categories: "string[] (required)",
+      color: "string hex #RRGGBB OR {r:int,g:int,b:int} (required)",
+      transparency: "int 0..100?",
+      halftone: "boolean?",
+      surfaceSolid: "boolean? (default true)",
+      projectionLines: "boolean? (default false)",
+      forceDetachTemplate: "boolean? (default false)",
+      viewId: "int?"
+    },
+    examples: [
+      {
+        action: "view.category.override_color",
+        args: {
+          categories: ["Floors"],
+          color: "#FF0000",
+          projectionLines: true,
+          surfaceSolid: true
+        }
+      },
+      {
+        action: "view.category.override_color",
+        args: {
+          categories: ["OST_Floors"],
+          color: { r: 255, g: 0, b: 0 },
+          transparency: 0,
+          forceDetachTemplate: true
+        }
+      }
+    ]
+  },
+  "view.set_scale": {
+    args: { viewId: "int?", scale: "int >= 1 (required)" },
+    examples: [{ action: "view.set_scale", args: { scale: 100 } }]
+  },
+  "view.set_detail_level": {
+    args: { viewId: "int?", detailLevel: "coarse|medium|fine (required)" },
+    examples: [{ action: "view.set_detail_level", args: { detailLevel: "fine" } }]
+  },
+  "view.set_discipline": {
+    args: { viewId: "int?", discipline: "architectural|structural|mechanical|coordination (required)" },
+    examples: [{ action: "view.set_discipline", args: { discipline: "coordination" } }]
+  },
+  "view.set_phase": {
+    args: { viewId: "int?", phase: "string?" },
+    examples: [{ action: "view.set_phase", args: { phase: "New Construction" } }]
+  },
+
+  // Parameters
+  "params.get": {
+    args: {
+      elementIds: "int[] (required)",
+      paramNames: "string[] (required)",
+      includeValueString: "boolean?"
+    },
+    examples: [
+      { action: "params.get", args: { elementIds: [344900], paramNames: ["Comments"], includeValueString: true } }
+    ]
+  },
+  "params.set": {
+    args: {
+      updates: "array (required) -> [{ elementId:int, param|bip|guid:string, value:any }, ...]"
+    },
+    examples: [
+      {
+        action: "params.set",
+        args: { updates: [{ elementId: 344900, param: "Comments", value: "Updated from MCP" }] }
+      }
+    ]
+  },
+  "params.set_where": {
+    args: {
+      where: "object (required)",
+      set: "array (required) -> [{ param|bip|guid:string, value:any }, ...]",
+      allowTypeParams: "boolean?"
+    },
+    examples: [
+      {
+        action: "params.set_where",
+        args: {
+          where: { categories: ["OST_Walls"] },
+          set: [{ param: "Comments", value: "QA Checked" }],
+          allowTypeParams: false
+        }
+      }
+    ]
   }
 };
+
+function inferHintForAction(action) {
+  const a = String(action || "").trim();
+  if (!a) return { args: {}, examples: [{ action: "", args: {} }] };
+
+  if (a.endsWith(".list") || a === "view.active") {
+    return { args: {}, examples: [{ action: a, args: {} }] };
+  }
+
+  if (a.startsWith("qto.")) {
+    const out = {
+      args: {
+        groupBy: "string[]?",
+        includeIds: "boolean?"
+      },
+      examples: [
+        { action: a, args: {} },
+        { action: a, args: { groupBy: ["type"] } }
+      ]
+    };
+    if (a.endsWith(".count")) {
+      out.notes = ["Count endpoint: usually returns grouped counts, not quantities."];
+    }
+    return out;
+  }
+
+  if (a.startsWith("view.category.")) {
+    return {
+      args: {
+        categories: "string[]",
+        viewId: "int?",
+        forceDetachTemplate: "boolean?"
+      },
+      examples: [{ action: a, args: { categories: ["Floors"] } }]
+    };
+  }
+
+  if (a.startsWith("view.") || a.startsWith("views.")) {
+    return {
+      args: { viewId: "int?" },
+      examples: [{ action: a, args: {} }]
+    };
+  }
+
+  if (a.startsWith("params.")) {
+    return {
+      args: { "varies": "See action-specific hints. Use /mcp.flat for tolerant payloads." },
+      examples: [{ action: a, args: {} }]
+    };
+  }
+
+  if (a.includes(".create") || a.includes(".place") || a.includes(".set")) {
+    return {
+      args: { "varies": "Action-specific object payload" },
+      examples: [{ action: a, args: {} }]
+    };
+  }
+
+  return { args: {}, examples: [{ action: a, args: {} }] };
+}
+
+function buildHintsForActions(actions = []) {
+  const out = {};
+  for (const action of actions || []) {
+    out[action] = ACTION_HINTS[action] || inferHintForAction(action);
+  }
+  return out;
+}
 
 // --- Coerción de argumentos ---
 function toCamelCaseKey(k) {
@@ -173,12 +482,101 @@ function maybeCoerceScalar(key, val) {
   return val;
 }
 
+function maybeCoerceBool(key, val) {
+  if (!/(include|force|visible|halftone|structural|combine|exportLinks|convertElementProperties|useSelection|projectionLines|surfaceSolid|placeOnlyEnclosed|roundVsRect|dryRun|allowTypeParams|flipHand|flipFacing)$/i.test(key)) {
+    return val;
+  }
+  if (typeof val === "boolean") return val;
+  if (typeof val === "number") return val !== 0;
+  if (typeof val === "string") {
+    const low = val.trim().toLowerCase();
+    if (low === "true" || low === "1" || low === "yes") return true;
+    if (low === "false" || low === "0" || low === "no") return false;
+  }
+  return val;
+}
+
+function toArray(val) {
+  if (Array.isArray(val)) return val;
+  if (val == null) return [];
+  if (typeof val === "string") {
+    const s = val.trim();
+    if (!s) return [];
+    if (s.includes(",")) return s.split(",").map(x => x.trim()).filter(Boolean);
+    return [s];
+  }
+  return [val];
+}
+
+function normalizeArgsAliases(action, args) {
+  const src = (args && typeof args === "object") ? args : {};
+  const out = {};
+
+  for (const [rawK, rawV] of Object.entries(src)) {
+    let k = toCamelCaseKey(rawK);
+
+    if (k === "groupby") k = "groupBy";
+    if (k === "includeRows" || k === "rows" || k === "includeDetails") k = "includeIds";
+    if (k === "category") k = "categories";
+    if (k === "view") k = "viewId";
+    if (k === "id" && (action === "element.info" || action === "view.apply_template")) {
+      k = action === "element.info" ? "elementId" : "templateId";
+    }
+
+    // Combinar categorías si vienen múltiples llaves equivalentes
+    if (k === "categories" && out.categories != null) {
+      out.categories = [...toArray(out.categories), ...toArray(rawV)];
+      continue;
+    }
+    out[k] = rawV;
+  }
+
+  // Atajos para color en override
+  if (action === "view.category.override_color") {
+    if (out.color == null) {
+      if (Array.isArray(out.rgb) && out.rgb.length >= 3) {
+        out.color = { r: out.rgb[0], g: out.rgb[1], b: out.rgb[2] };
+      } else if (out.rgb && typeof out.rgb === "object") {
+        out.color = out.rgb;
+      } else if (out.r != null && out.g != null && out.b != null) {
+        out.color = { r: out.r, g: out.g, b: out.b };
+      } else if (out.red != null && out.green != null && out.blue != null) {
+        out.color = { r: out.red, g: out.green, b: out.blue };
+      } else if (typeof out.hex === "string") {
+        out.color = out.hex;
+      }
+    }
+    if (out.categories != null) out.categories = toArray(out.categories);
+  }
+
+  if (action.startsWith("qto.") && out.groupBy != null) {
+    out.groupBy = toArray(out.groupBy);
+  }
+
+  if (out.categories != null && !Array.isArray(out.categories)) {
+    out.categories = toArray(out.categories);
+  }
+
+  return out;
+}
+
 function coerceArgsForAction(action, rawArgs) {
   if (!rawArgs || typeof rawArgs !== "object") return rawArgs || {};
+  const normalizedIn = normalizeArgsAliases(action, rawArgs);
   const out = {};
-  for (const [k, v] of Object.entries(rawArgs)) {
+  for (const [k, v] of Object.entries(normalizedIn)) {
     const camel = toCamelCaseKey(k);
-    const coerced = maybeCoerceScalar(camel, v);
+    const scalar = maybeCoerceScalar(camel, v);
+    const coerced = maybeCoerceBool(camel, scalar);
+
+    if (/(^|.*)(viewIds|levelIds|typeIds|templateIds|elementIds|categoryIds)$/i.test(camel)) {
+      const arr = toArray(coerced)
+        .map(x => typeof x === "string" ? parseInt(x, 10) : x)
+        .filter(x => !(typeof x === "number" && Number.isNaN(x)));
+      out[camel] = arr;
+      continue;
+    }
+
     if (/(^|.*)(viewId|levelId|typeId|templateId|elementId|categoryId)$/i.test(camel)) {
       out[camel] = typeof coerced === "string" ? parseInt(coerced, 10) : coerced;
       continue;
@@ -210,7 +608,19 @@ app.get("/health", (_req, res) => res.json({ ok: true, bridge: BRIDGE_URL }));
 app.get("/actions", async (_req, res) => {
   const j = await callBridgeGet("/actions").catch(() => null);
   if (!j?.ok) return res.status(502).json({ ok:false, message:"Bridge /actions failed", detail:j });
-  res.json({ ok: true, data: { actions: j.data.actions || [], hints: ACTION_HINTS } });
+  const actions = j.data.actions || [];
+  const hints = buildHintsForActions(actions);
+  res.json({
+    ok: true,
+    data: {
+      actions,
+      hints,
+      hintsMeta: {
+        hintedActions: Object.keys(hints).length,
+        generatedAt: new Date().toISOString()
+      }
+    }
+  });
 });
 
 // --- /mcp (JSON tolerante)
@@ -290,7 +700,7 @@ app.get("/openapi.json", async (req, res) => {
   const pubUrl = `${req.protocol}://${req.get("host")}`;
   const spec = {
     openapi: "3.1.0",
-    info: { title: "TAD-GPT Gateway", version: "1.2.0" },
+    info: { title: "TAD-GPT Gateway", version: "1.3.0" },
     servers: [{ url: pubUrl }],
     security: [{ bearerAuth: [] }],
     paths: {
@@ -304,14 +714,44 @@ app.get("/openapi.json", async (req, res) => {
       "/actions": {
         get: {
           operationId: "listActions",
-          summary: "List available bridge actions",
-          responses: { "200": { description: "OK" } }
+          summary: "List available bridge actions and runtime hints",
+          description: "Call this first. Use `data.hints[action]` to build valid args payloads for `/mcp`.",
+          responses: {
+            "200": {
+              description: "OK",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      ok: { type: "boolean" },
+                      data: {
+                        type: "object",
+                        properties: {
+                          actions: { type: "array", items: { type: "string" } },
+                          hints: { type: "object", additionalProperties: true },
+                          hintsMeta: {
+                            type: "object",
+                            properties: {
+                              hintedActions: { type: "integer" },
+                              generatedAt: { type: "string" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       },
       "/mcp": {
         post: {
           operationId: "mcpProxy",
           summary: "Generic MCP Proxy (tolerant JSON)",
+          description: "Tip: call /actions first and then send args matching `data.hints[action].args`.",
           requestBody: {
             required: true,
             content: {
