@@ -8,7 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace mcp_app
+namespace mcp_revit_bridge
 {
     public class App : IExternalApplication
     {

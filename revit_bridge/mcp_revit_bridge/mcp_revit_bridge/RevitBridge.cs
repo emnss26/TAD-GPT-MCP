@@ -15,7 +15,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace mcp_app
+namespace mcp_revit_bridge
 {
     internal class RevitBridge : IDisposable
     {

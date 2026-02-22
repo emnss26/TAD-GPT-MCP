@@ -14,7 +14,7 @@
     "mcp_qa",
     "mcp_export",
     "mcp_parameters",
-    "mcp_qto",
+    "mcp_quantification",
     "mcp_doc"
   ],
   "scripts": {
